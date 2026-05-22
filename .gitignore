@@ -1,0 +1,10 @@
+.env
+.data/
+.tmp/
+.pytest_cache
+*.srt
+__pycache__/
+*.egg-info/
+.eggs/
+dist/
+build/
