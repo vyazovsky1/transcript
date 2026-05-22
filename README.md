@@ -38,14 +38,14 @@ pip install -e .
 
 ```bash
 # Set your HuggingFace token — either in .env:
-#   HF_TOKEN=hf_...
+HF_TOKEN=hf_...
 # or as an env var:
 export HF_TOKEN=hf_...
 
 # Transcribe a recording
 transcribe meeting.mp3
 
-# With options
+# With options - saves time by skipping autodetection
 transcribe meeting.mp3 --speakers 2 --language en --model small --output meeting.srt
 
 # Use the faster standard diarization model (recommended, requires license acceptance)
@@ -68,7 +68,7 @@ Output: an SRT file alongside the input audio (or at `--output` path).
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--speakers N` | auto | Number of speakers (auto-detected if omitted) |
-| `--language CODE` | auto | Language code, e.g. `en`, `ru` (auto-detected if omitted) |
+| `--language CODE` | auto | Language code, e.g. `en`, `ua`, `fr` (auto-detected if omitted) |
 | `--model NAME` | `small` | Whisper model: `tiny`, `base`, `small`, `medium`, `large-v3` |
 | `--diarization-model MODEL` | `pyannote/speaker-diarization-3.1` | Pyannote diarization model |
 | `--output PATH` | `<input>.srt` | Output SRT file path |
@@ -77,10 +77,10 @@ Output: an SRT file alongside the input audio (or at `--output` path).
 
 ## Diarization Models
 
-| Model | Speed (CPU) | Notes |
-|-------|-------------|-------|
-| `pyannote/speaker-diarization-3.1` | Fast ✓ default | Requires accepting license at hf.co |
-| `pyannote/speaker-diarization-community-1` | Very slow | No extra license step needed |
+| Model | Notes |
+|-------|-------|
+| `pyannote/speaker-diarization-3.1` | Default. Requires accepting license at hf.co. Fast on GPU; similar to community-1 on CPU. |
+| `pyannote/speaker-diarization-community-1` | No extra license step needed. CPU speed comparable to 3.1. |
 
 ## Speed vs. Accuracy Trade-offs (CPU-only)
 
