@@ -184,12 +184,12 @@ def test_load_models_loads_all_three(mock_load_model, mock_load_align, mock_dp_c
     mock_dp_cls.return_value = MagicMock()
 
     whisper_model, align_model, align_metadata, diarize_pipeline = t.load_models(
-        "small", "en", "hf_tok", "cpu"
+        "small", "en", "hf_tok", "cpu", "pyannote/speaker-diarization-3.1"
     )
 
     mock_load_model.assert_called_once_with("small", "cpu", compute_type="int8", language="en")
     mock_load_align.assert_called_once_with(language_code="en", device="cpu")
-    mock_dp_cls.assert_called_once_with(token="hf_tok", device="cpu")
+    mock_dp_cls.assert_called_once_with(token="hf_tok", device="cpu", model_name="pyannote/speaker-diarization-3.1")
     assert whisper_model is not None
     assert align_model is not None
     assert diarize_pipeline is not None
@@ -201,7 +201,7 @@ def test_load_models_skips_align_when_no_language(mock_load_model, mock_load_ali
     mock_load_model.return_value = MagicMock()
     mock_dp_cls.return_value = MagicMock()
 
-    _, align_model, align_metadata, _ = t.load_models("small", None, "hf_tok", "cpu")
+    _, align_model, align_metadata, _ = t.load_models("small", None, "hf_tok", "cpu", "pyannote/speaker-diarization-3.1")
 
     mock_load_align.assert_not_called()
     assert align_model is None
@@ -327,6 +327,7 @@ def test_run_diarization_uses_pre_loaded_pipeline(mock_assign):
     t.run_diarization("audio.mp3", mock_pipeline, None, {"segments": []})
 
     mock_pipeline.assert_called_once()
+
 
 @patch("transcribe.whisperx.assign_word_speakers")
 def test_run_diarization_passes_speaker_count(mock_assign):

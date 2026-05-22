@@ -15,7 +15,7 @@ from whisperx.diarize import DiarizationPipeline
 
 load_dotenv()
 
-DIARIZATION_MODEL = "pyannote/speaker-diarization-community-1"
+DIARIZATION_MODEL_DEFAULT = "pyannote/speaker-diarization-3.1"
 TMP_DIR = Path.cwd() / ".tmp"
 
 log = logging.getLogger("transcribe")
@@ -50,7 +50,7 @@ def _load_interim(path: Path) -> dict | None:
     return None
 
 
-def check_prerequisites(hf_token: str) -> None:
+def check_prerequisites(hf_token: str, diarization_model: str) -> None:
     from huggingface_hub import HfApi
     from huggingface_hub.errors import GatedRepoError, RepositoryNotFoundError
 
@@ -72,14 +72,14 @@ def check_prerequisites(hf_token: str) -> None:
         _exit_with_errors(errors)
 
     try:
-        HfApi().model_info(DIARIZATION_MODEL, token=hf_token)
+        HfApi().model_info(diarization_model, token=hf_token)
     except GatedRepoError:
         errors.append(
-            f"Access denied to diarization model '{DIARIZATION_MODEL}'.\n"
-            f"  Accept the license at: https://huggingface.co/{DIARIZATION_MODEL}"
+            f"Access denied to diarization model '{diarization_model}'.\n"
+            f"  Accept the license at: https://huggingface.co/{diarization_model}"
         )
     except RepositoryNotFoundError:
-        errors.append(f"Diarization model '{DIARIZATION_MODEL}' not found on HuggingFace.")
+        errors.append(f"Diarization model '{diarization_model}' not found on HuggingFace.")
     except Exception as e:
         errors.append(f"Could not verify diarization model access: {e}")
 
@@ -94,7 +94,7 @@ def _exit_with_errors(errors: list[str]) -> None:
 
 
 def load_models(
-    model_name: str, language: str | None, hf_token: str, device: str
+    model_name: str, language: str | None, hf_token: str, device: str, diarization_model: str
 ) -> tuple[Any, Any, Any, Any]:
     log.info("Loading models...")
 
@@ -108,8 +108,8 @@ def load_models(
         log.info("[2/3] Alignment model — will load after language detection.")
         align_model, align_metadata = None, None
 
-    log.info("[3/3] Diarization model '%s'...", DIARIZATION_MODEL)
-    diarize_pipeline = DiarizationPipeline(token=hf_token, device=device)
+    log.info("[3/3] Diarization model '%s'...", diarization_model)
+    diarize_pipeline = DiarizationPipeline(token=hf_token, device=device, model_name=diarization_model)
 
     log.info("All models ready.")
     return whisper_model, align_model, align_metadata, diarize_pipeline
@@ -321,6 +321,10 @@ def main() -> None:
         help="HuggingFace token for pyannote model (or set HF_TOKEN env var)",
     )
     parser.add_argument(
+        "--diarization-model", "-dm", default=DIARIZATION_MODEL_DEFAULT, metavar="MODEL",
+        help=f"Pyannote diarization model (default: {DIARIZATION_MODEL_DEFAULT})",
+    )
+    parser.add_argument(
         "--resume", action="store_true",
         help="Resume from cached interim results in .tmp/ (default: start from scratch)",
     )
@@ -333,10 +337,10 @@ def main() -> None:
     device = "cpu"
 
     log.info("Checking prerequisites...")
-    check_prerequisites(hf_token)
+    check_prerequisites(hf_token, args.diarization_model)
 
     whisper_model, align_model, align_metadata, diarize_pipeline = load_models(
-        args.model, args.language, hf_token, device
+        args.model, args.language, hf_token, device, args.diarization_model
     )
 
     transcript = run_transcription(

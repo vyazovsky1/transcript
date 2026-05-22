@@ -47,6 +47,18 @@ transcribe meeting.mp3
 
 # With options
 transcribe meeting.mp3 --speakers 2 --language en --model small --output meeting.srt
+
+# Use the faster standard diarization model (recommended, requires license acceptance)
+# Accept license at: https://huggingface.co/pyannote/speaker-diarization-3.1
+#                    https://huggingface.co/pyannote/segmentation-3.0
+transcribe meeting.mp3 --speakers 2 --language en
+
+# Use the community diarization model (slower, no extra license needed beyond the token)
+transcribe meeting.mp3 --speakers 2 --language en \
+  --diarization-model pyannote/speaker-diarization-community-1
+
+# Resume after a failed diarization without re-transcribing
+transcribe meeting.mp3 --speakers 2 --language en --resume
 ```
 
 Output: an SRT file alongside the input audio (or at `--output` path).
@@ -58,8 +70,17 @@ Output: an SRT file alongside the input audio (or at `--output` path).
 | `--speakers N` | auto | Number of speakers (auto-detected if omitted) |
 | `--language CODE` | auto | Language code, e.g. `en`, `ru` (auto-detected if omitted) |
 | `--model NAME` | `small` | Whisper model: `tiny`, `base`, `small`, `medium`, `large-v3` |
+| `--diarization-model MODEL` | `pyannote/speaker-diarization-3.1` | Pyannote diarization model |
 | `--output PATH` | `<input>.srt` | Output SRT file path |
 | `--hf-token TOKEN` | `$HF_TOKEN` | HuggingFace token (overrides env var) |
+| `--resume` | off | Reuse cached interim results from `.tmp/` |
+
+## Diarization Models
+
+| Model | Speed (CPU) | Notes |
+|-------|-------------|-------|
+| `pyannote/speaker-diarization-3.1` | Fast ✓ default | Requires accepting license at hf.co |
+| `pyannote/speaker-diarization-community-1` | Very slow | No extra license step needed |
 
 ## Speed vs. Accuracy Trade-offs (CPU-only)
 
