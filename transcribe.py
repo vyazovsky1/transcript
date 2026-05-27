@@ -1,10 +1,12 @@
 import argparse
 import json
 import logging
+import multiprocessing
 import os
 import shutil
 import sys
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -94,12 +96,16 @@ def _exit_with_errors(errors: list[str]) -> None:
 
 
 def load_models(
-    model_name: str, language: str | None, hf_token: str, device: str, diarization_model: str
+    model_name: str, language: str | None, hf_token: str, device: str, diarization_model: str,
+    threads: int = 0, compute_type: str = "int8",
 ) -> tuple[Any, Any, Any, Any]:
     log.info("Loading models...")
 
     log.info("[1/3] Whisper '%s'...", model_name)
-    whisper_model = whisperx.load_model(model_name, device, compute_type="int8", language=language)
+    whisper_model = whisperx.load_model(
+        model_name, device, compute_type=compute_type, language=language, threads=threads,
+        asr_options={"multilingual": False, "hotwords": None},
+    )
 
     if language:
         log.info("[2/3] Alignment model for '%s'...", language)
@@ -139,16 +145,20 @@ def resolve_hf_token(cli_token: str | None) -> str:
     return token
 
 
-def _progress_bar(desc: str) -> tuple[tqdm, list[float]]:
+@contextmanager
+def _timed_progress(desc: str):
     bar = tqdm(total=100, unit="%", desc=f"  {desc}", bar_format="{l_bar}{bar}| {n:.0f}%")
-    return bar, [0.0]
-
-
-def _update_bar(bar: tqdm, last: list[float], pct: float) -> None:
-    delta = pct - last[0]
-    if delta > 0:
-        bar.update(delta)
-        last[0] = pct
+    last = [0.0]
+    def callback(pct: float) -> None:
+        delta = pct - last[0]
+        if delta > 0:
+            bar.update(delta)
+            last[0] = pct
+    try:
+        yield callback
+    finally:
+        bar.update(100 - last[0])
+        bar.close()
 
 
 def run_transcription(
@@ -174,13 +184,8 @@ def run_transcription(
     else:
         log.info("Transcribing...")
         t0 = time.monotonic()
-        bar, last = _progress_bar("Transcribing")
-        result = whisper_model.transcribe(
-            audio_path, language=language,
-            progress_callback=lambda pct: _update_bar(bar, last, pct),
-        )
-        bar.update(100 - last[0])
-        bar.close()
+        with _timed_progress("Transcribing") as cb:
+            result = whisper_model.transcribe(audio_path, language=language, progress_callback=cb)
         log.info("Transcribing done in %.1fs", time.monotonic() - t0)
         _save_interim(result, transcribe_cache)
         log.info("Transcription saved to %s", transcribe_cache)
@@ -192,13 +197,9 @@ def run_transcription(
 
     log.info("Aligning...")
     t0 = time.monotonic()
-    bar, last = _progress_bar("Aligning")
-    result = whisperx.align(
-        result["segments"], align_model, align_metadata, audio_path, device,
-        progress_callback=lambda pct: _update_bar(bar, last, pct),
-    )
-    bar.update(100 - last[0])
-    bar.close()
+    with _timed_progress("Aligning") as cb:
+        result = whisperx.align(result["segments"], align_model, align_metadata, audio_path, device,
+                                progress_callback=cb)
     log.info("Aligning done in %.1fs", time.monotonic() - t0)
     _save_interim(result, align_cache)
     log.info("Alignment saved to %s", align_cache)
@@ -213,19 +214,11 @@ def run_diarization(
     transcript: dict,
 ) -> dict:
     log.info("Identifying speakers...")
-    kwargs = {}
-    if num_speakers is not None:
-        kwargs = {"min_speakers": num_speakers, "max_speakers": num_speakers}
+    kwargs = {"min_speakers": num_speakers, "max_speakers": num_speakers} if num_speakers is not None else {}
 
     t0 = time.monotonic()
-    bar, last = _progress_bar("Diarizing")
-    diarize_segments = pipeline(
-        audio_path,
-        progress_callback=lambda pct: _update_bar(bar, last, pct),
-        **kwargs,
-    )
-    bar.update(100 - last[0])
-    bar.close()
+    with _timed_progress("Diarizing") as cb:
+        diarize_segments = pipeline(audio_path, progress_callback=cb, **kwargs)
     log.info("Diarizing done in %.1fs", time.monotonic() - t0)
 
     return whisperx.assign_word_speakers(diarize_segments, transcript)
@@ -328,19 +321,35 @@ def main() -> None:
         "--resume", action="store_true",
         help="Resume from cached interim results in .tmp/ (default: start from scratch)",
     )
+    parser.add_argument(
+        "--device", default="cpu", metavar="DEVICE",
+        help="Compute device: cpu (default). 'cuda' requires NVIDIA GPU.",
+    )
+    parser.add_argument(
+        "--threads", type=int, default=0, metavar="N",
+        help="CPU threads for Whisper inference (default: auto = all logical cores)",
+    )
+    parser.add_argument(
+        "--compute-type", default="int8", metavar="TYPE",
+        choices=["int8", "int8_bfloat16", "bfloat16", "float16", "float32"],
+        help="Precision mode (default: int8). Use int8_bfloat16 for better quality at similar speed on 11th+ gen Intel.",
+    )
 
     args = parser.parse_args()
 
     audio_path = load_audio(args.audio_file)
     hf_token = resolve_hf_token(args.hf_token)
     output_path = args.output or default_output_path(audio_path)
-    device = "cpu"
+    device = args.device
+    threads = args.threads or multiprocessing.cpu_count()
 
+    log.info("Device: %s | Threads: %d | Compute: %s", device, threads, args.compute_type)
     log.info("Checking prerequisites...")
     check_prerequisites(hf_token, args.diarization_model)
 
     whisper_model, align_model, align_metadata, diarize_pipeline = load_models(
-        args.model, args.language, hf_token, device, args.diarization_model
+        args.model, args.language, hf_token, device, args.diarization_model,
+        threads=threads, compute_type=args.compute_type,
     )
 
     transcript = run_transcription(

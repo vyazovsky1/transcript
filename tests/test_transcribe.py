@@ -187,7 +187,8 @@ def test_load_models_loads_all_three(mock_load_model, mock_load_align, mock_dp_c
         "small", "en", "hf_tok", "cpu", "pyannote/speaker-diarization-3.1"
     )
 
-    mock_load_model.assert_called_once_with("small", "cpu", compute_type="int8", language="en")
+    mock_load_model.assert_called_once_with("small", "cpu", compute_type="int8", language="en", threads=0,
+                                            asr_options={"multilingual": False, "hotwords": None})
     mock_load_align.assert_called_once_with(language_code="en", device="cpu")
     mock_dp_cls.assert_called_once_with(token="hf_tok", device="cpu", model_name="pyannote/speaker-diarization-3.1")
     assert whisper_model is not None

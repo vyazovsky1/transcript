@@ -1,14 +1,27 @@
-# Install PyTorch CPU-only first (avoids downloading ~2GB CUDA packages):
-#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# Installation (Python 3.14+):
 #
-# Then install the rest:
-#   pip install -r requirements.txt
+#   pip install -r requirements.txt --ignore-requires-python
+#
+# For CPU-only PyTorch (avoids ~2GB CUDA download), install torch first:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+#   pip install -r requirements.txt --ignore-requires-python
 
 torch
-whisperx
-pyannote.audio>=3.1
 python-dotenv
 tqdm
+
+# whisperx — installed from git HEAD (3.8.6+) because the PyPI release (3.2.0)
+# is incompatible with pyannote 4.x and modern torchaudio on Python 3.14.
+# The git version has the use_auth_token → token migration and other fixes.
+git+https://github.com/m-bain/whisperX.git --no-deps
+
+# whisperx runtime deps
+ctranslate2>=4.6.0
+faster-whisper>=1.1.0
+pyannote.audio>=4.0
+omegaconf
+nltk
+transformers
 
 # Development / testing
 pytest

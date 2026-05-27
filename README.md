@@ -19,6 +19,8 @@ Transcribes a meeting audio recording and produces a speaker-labeled SRT file.
 
 ```bash
 # 1. Install ffmpeg (required for audio decoding)
+# Windows (winget, built into Windows 10/11):
+winget install ffmpeg
 # Ubuntu / Debian / WSL:
 sudo apt-get install -y ffmpeg
 # macOS:
@@ -74,6 +76,9 @@ Output: an SRT file alongside the input audio (or at `--output` path).
 | `--output PATH` | `<input>.srt` | Output SRT file path |
 | `--hf-token TOKEN` | `$HF_TOKEN` | HuggingFace token (overrides env var) |
 | `--resume` | off | Reuse cached interim results from `.tmp/` |
+| `--device DEVICE` | `cpu` | Compute device (`cpu`; `cuda` requires NVIDIA GPU) |
+| `--threads N` | auto | CPU threads for Whisper inference (default: all logical cores) |
+| `--compute-type TYPE` | `int8` | Precision: `int8`, `int8_bfloat16`, `bfloat16`, `float16`, `float32` |
 
 ## Diarization Models
 
